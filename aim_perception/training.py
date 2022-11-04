@@ -16,6 +16,7 @@ class Trainer:
         optimizer: torch.optim.Optimizer, 
         scheduler: torch.optim.lr_scheduler._LRScheduler = None,
         wandb_project: str = None,
+        wandb_config_updates: dict = {}
     ) -> None:
 
         self._epochs = epochs
@@ -24,17 +25,17 @@ class Trainer:
         self._optimizer = optimizer
         self._scheduler = scheduler
         self._wandb = wandb_project
-
-        self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        self._wandb_config_updates = wandb_config_updates
 
         self._max_val_accuracy = 0
         self._min_val_loss = float('inf')
+        self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
         
     def config_wandb(self, fine_tune_epochs: int, train_loader: torch.utils.data.DataLoader):
-        wandb.init(
-            project=self._wandb,
-            name=datetime.utcnow().isoformat(),
-            config=dict(
+
+        wandb_config = self._wandb_config_updates.update(
+            dict(
                 epochs=self._epochs,
                 batch_size=train_loader.batch_size,
                 fine_tune_epochs=fine_tune_epochs,
@@ -42,6 +43,8 @@ class Trainer:
                 weight_decay=self._optimizer.defaults['weight_decay'],
             )
         )
+        
+        wandb.init(project=self._wandb, name=datetime.utcnow().isoformat(), config=wandb_config)
 
     def run_eval(
         self, 
