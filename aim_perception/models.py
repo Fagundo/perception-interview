@@ -1,21 +1,44 @@
 import torch
 import torch.nn as nn
+from typing import List
 
 
-class LinearHead(nn.Module):
+class MultiClassMlpHead(nn.Module):
 
-    def __init__(self, input_size: int, num_targets: int, dropout: float = 0.01, activation: nn.Module = nn.Softmax) -> None:
+    def __init__(
+        self, 
+        input_size: int, 
+        inner_dim: int,  
+        num_targets: int, 
+        bias: bool = True,
+        dropout: float = 0.1, 
+        norm: nn.Module = None,
+    ) -> None:
         super().__init__()
-        self._activation = activation
+
+        self._activation = nn.Softmax(dim=1)
+        self._relu = nn.ReLU(inplace=True)
         self._dropout = nn.Dropout(dropout) if dropout else None
-        self._fc1 = nn.Linear(input_size, num_targets)
+        
+        self._fc1 = nn.Linear(input_size, inner_dim, bias=bias)
+        self._fc2 = nn.Linear(inner_dim, num_targets, bias=bias)
+
+        self._norm_1 = norm(inner_dim) if norm else lambda x: x
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         
+        # First fully connected
+        x = self._fc1(x)
+        x = self._norm_1(x)
+        x = self._relu(x)
+
         if self._dropout:
             x = self._dropout(x)
 
-        return self._fc1(x)
+        # Second fully connected fully connected
+        x = self._fc2(x)
+
+        return self._activation(x)
 
 
 class ModelWrapper(nn.Module):
@@ -242,9 +265,9 @@ class ResNetBrick(nn.Module):
         return self.layers(x)
 
 
-class ResNet34(nn.Module):
+class ResNet(nn.Module):
 
-    def __init__(self, in_channels: int, depthwise_separable: bool = False):
+    def __init__(self, in_channels: int, layers_per_chan: List[int], depthwise_separable: bool = False):
         super().__init__()
         '''
         Note, this is different from true resnet, with kernel_size = 3 instead of 7.
@@ -255,12 +278,14 @@ class ResNet34(nn.Module):
         self._norm_1 = nn.BatchNorm2d(64)
         self._activation_1 = nn.ReLU()
 
-        # Instantiate convs similar to resnet 34
+        assert len(layers_per_chan)==4, 'layers_per_chan must have 4 integer values!'
+
+        # Explicitly Instantiate Convs. While not super functional, it is a clear demonstration of resnet arch.
         self._conv_2 = ResNetBrick(
             in_channels=64, 
             inner_channels=64, 
             downsample_stride=2, 
-            num_layers=3, 
+            num_layers=layers_per_chan[0], 
             depthwise_separable=depthwise_separable
         )
 
@@ -268,7 +293,7 @@ class ResNet34(nn.Module):
             in_channels=64, 
             inner_channels=128, 
             downsample_stride=2, 
-            num_layers=4, 
+            num_layers=layers_per_chan[1], 
             depthwise_separable=depthwise_separable
         )       
 
@@ -276,7 +301,7 @@ class ResNet34(nn.Module):
             in_channels=128, 
             inner_channels=256, 
             downsample_stride=2, 
-            num_layers=6, 
+            num_layers=layers_per_chan[2], 
             depthwise_separable=depthwise_separable
         )        
 
@@ -284,7 +309,7 @@ class ResNet34(nn.Module):
             in_channels=256, 
             inner_channels=512, 
             downsample_stride=2, 
-            num_layers=3, 
+            num_layers=layers_per_chan[3], 
             depthwise_separable=depthwise_separable
         )        
 
@@ -308,3 +333,13 @@ class ResNet34(nn.Module):
         # No fully connected, leaving that up to the heads
 
         return out
+
+    @classmethod
+    def resnet_18(cls, in_channels: int, depthwise_separable: bool = False):
+
+        return cls(in_channels, [2, 2, 2, 2], depthwise_separable)
+
+    @classmethod
+    def resnet_34(cls, in_channels: int, depthwise_separable: bool = False):
+
+        return cls(in_channels, [3, 4, 6, 3], depthwise_separable)        

@@ -26,14 +26,14 @@ class Trainer:
         self._wandb = wandb_project
 
         
-    def config_wandb(self, frozen_backbone: bool, train_loader: torch.utils.data.DataLoader):
+    def config_wandb(self, fine_tune_epochs: int, train_loader: torch.utils.data.DataLoader):
         wandb.init(
             project=self._wandb,
             name=datetime.utcnow().isoformat(),
             config=dict(
                 epochs=self._epochs,
                 batch_size=train_loader.batch_size,
-                frozen_backbone=frozen_backbone,
+                fine_tune_epochs=fine_tune_epochs,
                 learning_rate=self._optimizer.defaults['lr'],
                 weight_decay=self._optimizer.defaults['weight_decay'],
             )
@@ -87,20 +87,23 @@ class Trainer:
         model: nn.Module, 
         train_loader: torch.utils.data.DataLoader, 
         val_loader: torch.utils.data.DataLoader, 
-        freeze_backbone: bool = False
+        fine_tune_epochs: int = None
     ) -> nn.Module:
 
         # Configure weights and biases if given
         if self._wandb:
-            self.config_wandb(frozen_backbone=freeze_backbone, train_loader=train_loader)
+            self.config_wandb(fine_tune_epochs=fine_tune_epochs, train_loader=train_loader)
 
         # Freeze backbone
-        if freeze_backbone:
+        if fine_tune_epochs:
             model.freeze_backbone()
                     
         for epoch in range(self._epochs):  # loop over the dataset multiple times
                 
             running_loss = 0.0
+
+            if fine_tune_epochs and epoch==fine_tune_epochs:
+                model.unfreeze_backbone()
 
             for i, batch in enumerate(train_loader, 0):
                 # Retrieve inpute and labels
