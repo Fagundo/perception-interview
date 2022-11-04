@@ -25,6 +25,10 @@ class Trainer:
         self._scheduler = scheduler
         self._wandb = wandb_project
 
+        self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+        self._max_val_accuracy = 0
+        self._min_val_loss = float('inf')
         
     def config_wandb(self, fine_tune_epochs: int, train_loader: torch.utils.data.DataLoader):
         wandb.init(
@@ -59,6 +63,9 @@ class Trainer:
             for j, val_batch in enumerate(val_loader):
                 x_val, y_val = val_batch
 
+                # To device
+                x_val, y_val = x_val.to(self._device), y_val.to(self._device)
+
                 # Get val estimate
                 y_val_hat = model(x_val)
 
@@ -67,8 +74,8 @@ class Trainer:
                 running_val_loss += loss
 
                 # Accumulate validation
-                y_val_accum.append(y_val)
-                y_val_hat_accum.append(y_val_hat)
+                y_val_accum.append(y_val.cpu())
+                y_val_hat_accum.append(y_val_hat.cpu())
 
         # Gather metrics
         epoch_train_loss = running_loss / self._validate_every
@@ -79,8 +86,23 @@ class Trainer:
         
         print(f'[{epoch_num + 1}, {batch_num + 1:5d}] train loss: {epoch_train_loss:.3f} | val loss: {epoch_val_loss:.3f} | val bal-acc: {balanced_accuracy:.3f}')
 
+        # Update tracking
+        self._max_val_accuracy = max(balanced_accuracy, self._max_val_accuracy)
+        self._min_val_loss = min(epoch_val_loss, self._min_val_loss)
+
+        # Ship to wandb if given
         if self._wandb:
-            wandb.log(dict(train_loss=epoch_train_loss, val_loss=epoch_val_loss, val_accuracy=balanced_accuracy))
+            wandb.log(
+                dict(
+                    train_loss=epoch_train_loss, 
+                    val_loss=epoch_val_loss, 
+                    val_accuracy=balanced_accuracy,
+                    min_val_loss = self._min_val_loss,
+                    max_val_accuracy = self._max_val_accuracy
+                )
+            )
+
+        return evaluation
 
     def __call__(
         self, 
@@ -97,6 +119,10 @@ class Trainer:
         # Freeze backbone
         if fine_tune_epochs:
             model.freeze_backbone()
+
+        # Configure device
+        model = model.to(self._device)
+        print(f'Moving model to {self._device}...')
                     
         for epoch in range(self._epochs):  # loop over the dataset multiple times
                 
@@ -109,12 +135,15 @@ class Trainer:
                 # Retrieve inpute and labels
                 x, y = batch
 
+                # To device
+                x, y = x.to(self._device), y.to(self._device)
+
                 # Zero out gradients
                 self._optimizer.zero_grad()
 
                 # Forward pass
                 y_hat = model(x)
-
+                
                 # Calculate loss
                 loss = self._criterion(y_hat, y)
 
@@ -133,13 +162,18 @@ class Trainer:
 
                     running_loss = 0.0
 
-        # Run batch eval
-        print(f'-------- Finished Epoch {epoch + 1} --------')
-        self.run_eval(
+            # Run batch eval
+            print(f'-------- Finished Epoch {epoch + 1} --------')
+
+            # Step the scheduler
+            if self._scheduler:
+                self._scheduler.step()
+
+        print(f'-------- Finished Training --------')
+
+        eval = self.run_eval(
             epoch_num=epoch, batch_num=i, running_loss=running_loss, model=model, val_loader=val_loader
         )                    
 
-        # Step the scheduler
-        if self._scheduler:
-            self._scheduler.step()
+        return eval
 

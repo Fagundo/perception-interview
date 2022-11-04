@@ -141,8 +141,8 @@ class ResNetBlock(nn.Module):
             self._res_projection = lambda x: x  # Just pass me along
 
         # Enforcing kaiming (He) uniform initialization
-        torch.nn.init.kaiming_uniform_(self._depthwise_conv.weight, nonlinearity='relu')
-        torch.nn.init.kaiming_uniform_(self._pointwise_conv.weight, nonlinearity='relu')
+        torch.nn.init.kaiming_uniform_(self._conv_1.weight, nonlinearity='relu')
+        torch.nn.init.kaiming_uniform_(self._conv_2.weight, nonlinearity='relu')
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
 
