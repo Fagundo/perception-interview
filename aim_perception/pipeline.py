@@ -63,11 +63,12 @@ def train_model(
     optimizer: torch.optim.Optimizer, 
     train_loader: torch.utils.data.DataLoader,
     val_loader: torch.utils.data.DataLoader,
-    epochs: int = 40,
-    scheduler_step_size: int = 10,
+    wandb_project: str,
+    wandb_run_name: str,
+    epochs: int = 60,
+    scheduler_step_size: int = 20,
     scheduler_gamma: float = 0.1,
     fine_tune_epochs: int = None,
-    wandb_project: str = None,
 ) -> nn.Module:
 
     # Instantiate Loss
@@ -87,9 +88,15 @@ def train_model(
         criterion=criterion, 
         optimizer=optimizer, 
         scheduler=scheduler, 
-        wandb_project=wandb_project
+        wandb_project=wandb_project,
     )
-    eval = trainer(model=model, train_loader=train_loader, val_loader=val_loader, fine_tune_epochs=fine_tune_epochs)
+    eval = trainer(
+        model=model, 
+        train_loader=train_loader, 
+        val_loader=val_loader, 
+        run_name=wandb_run_name,
+        fine_tune_epochs=fine_tune_epochs
+    )
 
     print(eval.classification_report)
 

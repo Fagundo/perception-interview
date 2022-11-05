@@ -66,19 +66,20 @@ def run_sweep(
                         train_loader, 
                         val_loader, 
                         wandb_project=wandb_project, 
-                        fine_tune_epochs=fine_tune_temp
+                        fine_tune_epochs=fine_tune_temp,
+                        wandb_run_name=model['name']
                     )
       
 if __name__=='__main__':
 
     parser = argparse.ArgumentParser(prog = 'Model Sweeper')
     parser.add_argument('-p','--path', help='Data path', required=True)
-    parser.add_argument('-w','--wandb', help='Wandb project name', default=None)
-    parser.add_argument('-f','--fine_tune_epochs', help='Number of epochs to freeze backbone', default = 4)
-    parser.add_argument('-d','--dropout', nargs='+', help='Model dropout values', default=[0.1, 0.5])
-    parser.add_argument('-b','--batch_sizes', nargs='+', help='Training batch sizes', default=[128, 256])
-    parser.add_argument('-i','--image_sizes', nargs='+', help='Image sizes', default=[64, 96])    
-    parser.add_argument('-wd','--weight_decays', nargs='+', help='Image sizes', default=[1e-4, 1e-5])    
+    parser.add_argument('-w','--wandb', help='Wandb project name', required=True)
+    parser.add_argument('-f','--fine_tune_epochs', help='Number of epochs to freeze backbone', default = 10)
+    parser.add_argument('-d','--dropout', nargs='+', help='Model dropout values', default=[0.1, 0.05])
+    parser.add_argument('-b','--batch_sizes', nargs='+', help='Training batch sizes', default=[256])
+    parser.add_argument('-i','--image_sizes', nargs='+', help='Image sizes', default=[96])    
+    parser.add_argument('-wd','--weight_decays', nargs='+', help='Weight decays', default=[1e-4, 1e-5])    
 
     args = parser.parse_args()
 

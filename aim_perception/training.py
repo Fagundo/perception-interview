@@ -32,7 +32,7 @@ class Trainer:
         self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         
-    def config_wandb(self, fine_tune_epochs: int, train_loader: torch.utils.data.DataLoader):
+    def config_wandb(self, fine_tune_epochs: int, train_loader: torch.utils.data.DataLoader, name: str = ''):
 
         wandb_config = self._wandb_config_updates.update(
             dict(
@@ -44,7 +44,9 @@ class Trainer:
             )
         )
         
-        wandb.init(project=self._wandb, name=datetime.utcnow().isoformat(), config=wandb_config)
+        name += datetime.utcnow().isoformat()
+
+        wandb.init(project=self._wandb, name=name, config=wandb_config, reinit=True)
 
     def run_eval(
         self, 
@@ -52,7 +54,7 @@ class Trainer:
         batch_num: int, 
         running_loss: float, 
         model: nn.Module, 
-        val_loader: AimDataset
+        val_loader: AimDataset,
     ) -> None:
 
         # Instantiate val loss
@@ -112,12 +114,13 @@ class Trainer:
         model: nn.Module, 
         train_loader: torch.utils.data.DataLoader, 
         val_loader: torch.utils.data.DataLoader, 
-        fine_tune_epochs: int = None
+        fine_tune_epochs: int = None,
+        run_name: str = '',
     ) -> nn.Module:
 
         # Configure weights and biases if given
         if self._wandb:
-            self.config_wandb(fine_tune_epochs=fine_tune_epochs, train_loader=train_loader)
+            self.config_wandb(fine_tune_epochs=fine_tune_epochs, train_loader=train_loader, name=run_name)
 
         # Freeze backbone
         if fine_tune_epochs:
@@ -172,11 +175,15 @@ class Trainer:
             if self._scheduler:
                 self._scheduler.step()
 
+
         print(f'-------- Finished Training --------')
 
         eval = self.run_eval(
             epoch_num=epoch, batch_num=i, running_loss=running_loss, model=model, val_loader=val_loader
         )                    
+
+        # End wandb run
+        wandb.run.finish()
 
         return eval
 
