@@ -79,7 +79,7 @@ if __name__=='__main__':
     parser.add_argument('-d','--dropout', nargs='+', help='Model dropout values', default=[0.1, 0.05])
     parser.add_argument('-b','--batch_sizes', nargs='+', help='Training batch sizes', default=[256])
     parser.add_argument('-i','--image_sizes', nargs='+', help='Image sizes', default=[96])    
-    parser.add_argument('-wd','--weight_decays', nargs='+', help='Weight decays', default=[1e-5])    
+    parser.add_argument('-wd','--weight_decays', nargs='+', help='Weight decays', default=[1e-4])    
 
     args = parser.parse_args()
 
