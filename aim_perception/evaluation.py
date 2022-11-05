@@ -106,17 +106,22 @@ class InferenceEvaluation(Evaluation):
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
         y_val_accum, y_val_hat_accum = [], []
 
-        for val_batch in loader:
-            x_val, y_val = val_batch
+        with torch.no_grad():
+            for batch in loader:
+                x_val, y_val = batch
 
-            # To device
-            x_val, y_val = x_val.to(device), y_val.to(device)
+                # To device
+                x_val, y_val = x_val.to(device), y_val.to(device)
 
-            # Get val estimate
-            y_val_hat = model(x_val)
+                # Get val estimate
+                y_val_hat = model(x_val)
 
-            # Accumulate validation
-            y_val_accum.append(y_val.cpu())
-            y_val_hat_accum.append(y_val_hat.cpu())
+                # To Cpu
+                y_val = y_val.cpu()
+                y_val_hat = y_val_hat.cpu()
+
+                # Accumulate validation
+                y_val_accum.append(y_val)
+                y_val_hat_accum.append(y_val_hat)
 
         return y_val_accum, y_val_hat_accum

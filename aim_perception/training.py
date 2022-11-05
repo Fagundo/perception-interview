@@ -242,7 +242,6 @@ class Trainer:
         # If we are using stochastic weight averaging, swap swa and save model
         if isinstance(self._optimizer, torchcontrib.optim.swa.SWA):
             self._optimizer.swap_swa_sgd()
-            torch.save(model.state_dict(), self._save_path)
 
         print(f'-------- Finished Training --------')
 
@@ -251,7 +250,8 @@ class Trainer:
         )                    
 
         # End wandb run
-        wandb.run.finish()
+        if self._wandb:
+            wandb.run.finish()
 
         return eval
 
