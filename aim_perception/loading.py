@@ -1,25 +1,49 @@
 import os
 import torch
 import random
-import numpy as np
 import pandas as pd
 from PIL import Image
 from typing import List, Tuple
-from torchvision import transforms
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from sklearn.utils.class_weight import compute_class_weight
 
 class AimDataset(Dataset):
+    ''' Dataset for the AIM Perception Vehicle Dataset 
 
+    Attributes:
+        _data_dir (str): Root directory for data, of structure:
+            /
+            - data/
+                - <image_name>.jpg
+            - ground_truth.csv
+        _gt_df (pd.DataFrame): Pandas dataframe for this dataset, containing a mapping of image name and classification label
+        _label_mapping (dict): A mapping of class labels (str) to one hot encoded tensor (torch.Tensor)
+        _transforms (List[torchvision.transforms]): List of transforms to apply to the images
+    '''
     def __init__(self, data_dir: str, ground_truth_df: pd.DataFrame, label_mapping: dict, transforms: List = []) -> None:
+        '''
+        Args:
+            data_dir (str): Root directory for data, of structure:
+                /
+                - data/
+                    - <image_name>.jpg
+                - ground_truth.csv
+            gt_df (pd.DataFrame): Pandas dataframe for this dataset, containing a mapping of image name and classification label
+            label_mapping (dict): A mapping of class labels (str) to one hot encoded tensor (torch.Tensor)
+            transforms (List[torchvision.transforms]): List of transforms to apply to the images        
+        '''
         self._data_dir = data_dir
         self._gt_df = ground_truth_df
         self._label_mapping = label_mapping
         self._transforms = transforms
 
     @property
-    def reverse_mapping(self):
+    def reverse_mapping(self) -> dict:
+        ''' Property to generate reverse class mappings. Useful when mapping from predicted labels to class names.
 
+        Returns:
+            dict: Mapping of index of label in one hot encoded self._label_mapping to class name
+        '''
         reverse_mapping = {}
         for k, v in self._label_mapping.items():
             class_id = torch.argmax(v).item()
@@ -28,17 +52,33 @@ class AimDataset(Dataset):
         return reverse_mapping
 
     def get_class_weights(self) -> torch.Tensor:
+        ''' Util to compute class weights. We use this in the training dataset to 
+            help the model learn given the unbalanced class distribution.
 
+        Returns:
+            torch.Tensor: Torch tensor with class weights
+        '''
         class_weights = compute_class_weight(
             'balanced', classes=list(self._label_mapping.keys()), y = self._gt_df['class'].tolist()
         )
 
         return torch.Tensor(class_weights)
 
-    def __len__(self):
+    def __len__(self) -> int:
+        '''Returns length of dataset'''
+
         return self._gt_df.shape[0]
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor]:
+        ''' Returns an image as a tensor with transforms applied and one hot encoded label.
+
+        Args:
+            idx (int): Index of datapoint in self._gt_df
+        
+        Returns:
+            image (torch.Tensor): Image as tensor with transforms applied
+            label (torch.Tensor): One hot encoded label for the class
+        '''
         # Generate image path
         sample = self._gt_df.iloc[idx]
         file_name = sample.image_name + '.jpg'
@@ -59,6 +99,23 @@ class AimDataset(Dataset):
     
 class AimDatasetConstructor:
 
+    ''' Class to construct AimDataset train, val and test splits.
+    
+    Attributes:
+        _root_dir (str): Root directory for data, of structure:
+            /
+            - data/
+                - <image_name>.jpg
+            - ground_truth.csv
+        _transforms (List[torchvision.transforms]): List of transforms to apply to the images
+        _csv_path (str): Name of ground truth csv within root dir
+        _data_path (str): Name of data path within root dir
+        _df (pd.DataFrame): Pandas dataframe loaded from csv path
+        _train_df (pd.DataFrame): Pandas dataframe with data for training split
+        _val_df (pd.DataFrame): Pandas dataframe with data for validation split
+        _test_df (pd.DataFrame): Pandas dataframe with data for test split
+        _label_mapping (dict): A mapping of class labels (str) to one hot encoded tensor (torch.Tensor)
+    '''
     def __init__(
         self, 
         root_dir: str, 
@@ -69,6 +126,20 @@ class AimDatasetConstructor:
         val_percentage: int = 15, 
         test_percentage: int = 10
     ) -> None:
+        '''
+        Args:
+            root_dir (str): Root directory for data, of structure:
+                /
+                - data/
+                    - <image_name>.jpg
+                - ground_truth.csv
+            csv_path (str): Name of ground truth csv within root dir
+            data_path (str): Name of data path within root dir
+            transforms (List[torchvision.transforms]): List of transforms to apply to the images
+            train_percentage (int): Percentage of data to use for training as a whole number. Default, 75.
+            val_percentage (int): Percentage of data to use for validation as a whole number. Default, 15.
+            test_percentage (int): Percentage of data to use for testing as a whole number. Default, 10.
+        '''
         self._root_dir = root_dir
         self._transforms = transforms
         self._csv_path = os.path.join(self._root_dir, csv_path)
@@ -104,7 +175,20 @@ class AimDatasetConstructor:
         test_percentage: int,
         verbose: bool = True
     ) -> Tuple[pd.DataFrame]:
+        ''' Generate a split dataframe for train, val and test 
+            given the respective data percentages
 
+        Args:   
+            dataframe (pd.DataFrame): Pandas dataframe with all ground truth file names and labels
+            val_percentage (int): Percentage of data to use for validation as a whole number
+            test_percentage (int): Percentage of data to use for testing as a whole number
+            verbose (bool): Whether to report the actual computed split percentages. Default, True.
+
+        Returns:
+            train_df (pd.DataFrame): Pandas dataframe with data for training split
+            val_df (pd.DataFrame): Pandas dataframe with data for validation split
+            test_df (pd.DataFrame): Pandas dataframe with data for test split
+        '''
         
         # Get number of samples per split
         num_samples = dataframe.shape[0]
@@ -133,6 +217,14 @@ class AimDatasetConstructor:
         return train_df, val_df, test_df
 
     def _get_class_mapping(self, dataframe: pd.DataFrame) -> dict:
+        ''' Generates mappings from ground truth dataframe class column (str) to one hot encoded tensors.
+
+        Args:
+            dataframe (pd.DataFrame): Dataframe with class labels (class) and file names (image_name)
+
+        Returns:
+            mapping (dict): A mapping of class labels (str) to one hot encoded tensor (torch.Tensor)
+        '''
         
         # Instantiate mapping
         mapping = {}
@@ -151,23 +243,41 @@ class AimDatasetConstructor:
         return mapping
 
     def _get_dataset(self, dataset_df: pd.DataFrame) -> AimDataset:
+        ''' Method to generalize the creation of an AimDataset split.
+
+        Args:
+            dataset_df (pd.DataFrame): Dataframe for a split
+        
+        Returns:
+            AimDataset: AimDataset for the split
+        '''
         return AimDataset(data_dir=self._data_path, ground_truth_df=dataset_df, transforms=self._transforms, label_mapping=self._label_mapping)
 
     def get_train(self) -> AimDataset:
+        ''' Generate training dataset '''
         return self._get_dataset(self.train_df)
 
     def get_val(self) -> AimDataset:
+        ''' Generate validation dataset '''
         return self._get_dataset(self.val_df)
 
     def get_test(self) -> AimDataset:
+        ''' Generate test dataset '''
         return self._get_dataset(self.test_df)
 
     def get_all_datasets(self) -> Tuple[AimDataset]:
-        train_df = self.get_train()
-        val_df = self.get_val()
-        test_df = self.get_test()
+        ''' Method to return train, val and test AimDatasets.
 
-        return train_df, val_df, test_df
+        Returns:
+            train (AimDataset): Training split AimDataset
+            val (AimDataset): Validation split AimDataset
+            test (AimDataset): Test split AimDataset
+        '''
+        train = self.get_train()
+        val = self.get_val()
+        test = self.get_test()
+
+        return train, val, test
 
 
 

@@ -4,7 +4,15 @@ from aim_perception.models import ModelWrapper, MultiClassMlpHead
 
 
 class ModelFactory:
-    '''A factory method for easily calling models based on the resnset size'''
+    '''A factory method for easily calling models based on the resnset size
+
+    To use, call ModelFactory.get_model(model_name, **model_kwargs)
+
+    Models Supported:
+        ResNet18: name = 'resnet_18'
+        ResNet34: name = 'resnet_34'
+        ResNet50: name = 'resnet_50'
+    '''
 
     @classmethod
     def _resnet_18(cls, dropout: int, inner_dim: int = 100) -> nn.Module:
@@ -62,6 +70,17 @@ class ModelFactory:
 
     @classmethod
     def get_model(cls, model_name: str, **model_kwargs):
+        '''Class method to return a model instance
+
+        Args:
+            model_name (str): Name of model. Supported are resnet_18, resnet_34, resnet_50
+            model_kwargs (kwargs): Model keyword arguments. Supported are:
+                dropout (int): Dropout rate to apply to the MLP head.
+                inner_dim (int): Inner dimmension of the MLP head.
+
+        Returns:
+            nn.Module: Torch nn.Module with pretrained ResNet backbone and MLP head.
+        '''
 
         if model_name=='resnet_18': 
             return cls._resnet_18(**model_kwargs)

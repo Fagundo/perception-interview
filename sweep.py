@@ -50,7 +50,7 @@ def run_sweep(
             )
 
             # Configure wandb
-            wandb_config = dict(resnet_size=resnet_size, weight_decay=weight_decay, image_size=image_size)
+            wandb_config = dict(resnet_size=resnet_size, weight_decay=weight_decay, image_size=image_size, dropout=dropout)
 
             # Run training
             pipeline.train_model(
