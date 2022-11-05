@@ -34,7 +34,8 @@ class Trainer:
         
     def config_wandb(self, fine_tune_epochs: int, train_loader: torch.utils.data.DataLoader, name: str = ''):
 
-        wandb_config = self._wandb_config_updates.update(
+        wandb_config = self._wandb_config_updates
+        wandb_config.update(
             dict(
                 epochs=self._epochs,
                 batch_size=train_loader.batch_size,
