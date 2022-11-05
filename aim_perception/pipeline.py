@@ -11,12 +11,29 @@ from aim_perception.loading import AimDatasetConstructor
 IMAGE_PATH = 'data'
 LABEL_PATH = 'ground_truth.csv'
 
-# Configure data loading
-IMAGE_MEAN = [0.4886, 0.4855, 0.4838]
-IMAGE_STD = [0.2456, 0.2443, 0.2490]
+# Configure Normalization. From EDA notebook
+IMAGE_MEAN = [0.4876, 0.4846, 0.4841]
+IMAGE_STD = [0.2448, 0.2435, 0.2481]
 
 
 def create_data_loaders(root_data_path: str, image_size: Tuple[int], batch_size: int) -> Tuple[torch.utils.data.DataLoader]:
+    ''' Function to create data loaders for train, val and test splits.
+
+    Args:
+        root_data_path (str): Root directory for data, of structure:
+            /
+            - data/
+                - <image_name>.jpg
+            - ground_truth.csv
+        image_size (Tuple[int]): Size to convert images to
+        batch_size (int): Batch size for training. Note, validation and test splits will be double this.
+
+    Returns:
+        train_loader (torch.utils.data.DataLoader): Data loader for AimDataset of train split
+        val_loader (torch.utils.data.DataLoader): Data loader for AimDataset of val split
+        test_loader (torch.utils.data.DataLoader): Data loader for AimDataset of test split
+
+    '''
     # Create Data
     dataset_constructor = AimDatasetConstructor(
         root_dir=root_data_path,
@@ -43,10 +60,26 @@ def create_model_and_optimimzer(
     model_kwargs: dict, 
     learning_rate: float = 1e-1, 
     weight_decay: float = 1e-4, 
-    momentum=0.9,
+    momentum: float = 0.9,
     swa_kwargs: dict = {},
 ) -> Tuple[nn.Module, torch.optim.Optimizer]:
+    ''' Function to generate one of our ResNet models and respective optimizer.
+        
+        Optimizers will be SGD, with optional Stochastic Weight Averaging. 
+        For more on SWA, see https://pytorch.org/blog/stochastic-weight-averaging-in-pytorch/
 
+    Args:
+        model_name (str): Name of model to call from aim_perception.ModelFactory
+        model_kwargs (dict): Keyword arguments for models supported in aim_perception.ModelFactory
+        learning_rate (float): Learning rate for optimizer. Default,  1e-1.
+        weight_decay (float): Weight decay for optimizer. Default, 1e-4, 
+        momentum (float): Momentum for optimizer. Default, 0.9.
+        swa_kwargs (dict): Keyword arguments for torchcontrib.optim.SWA. If None, SWA wont be used. Default, None.
+
+    Returns:    
+        model (nn.Module): Model generated from aim_perception.ModelFactory
+        optimizer (torch.optim.Optimizer): Torch optimizer for training
+    '''
     # Create model
     model = ModelFactory.get_model(model_name, **model_kwargs)
     optimizer = torch.optim.SGD(
@@ -71,13 +104,36 @@ def train_model(
     val_loader: torch.utils.data.DataLoader,
     wandb_project: str,
     wandb_run_name: str,
-    epochs: int = 30,
-    fine_tune_epochs: int = 10,
-    scheduler_step_size: int = 10,
+    epochs: int = 45,
+    fine_tune_epochs: int = 15,
+    scheduler_step_size: int = 15,
     scheduler_gamma: float = 0.1,
     save_path: str = None,
     wandb_config_updates: dict = {},
 ) -> nn.Module:
+    ''' Function for a wrapping a model training run.
+        - Criterion fixed to CrossEntropy loss with class weights
+        - Uses a step scheduler for learning rate
+        - Optional wandb integration for reporting results
+        - Will print evaluation metrics on validation set
+
+    Args:
+        model (nn.Module): Torch model to train
+        optimizer (torch.optim.Optimizer): Optimizer for training
+        train_loader (torch.utils.data.DataLoader): Training split data loader with AimDataset
+        val_loader (torch.utils.data.DataLoader): Validation split data loader with AimDataset
+        wandb_project (str): WandB project to report results to (required for sweeping)
+        wandb_run_name (str): WandB run name
+        epochs (int): Epochs to train for. Default, 45.
+        fine_tune_epochs (int): Number of epochs to freeze back bone for. Default, 15.
+        scheduler_step_size (int): Step size of step learning rate scheduler. Default, 15.
+        scheduler_gamma (float): Scheduler gamma of step learning rate scheduler. Default, . 0.1.
+        save_path (str): Optional path to save model to. Default, None.
+        wandb_config_updates (dict): Optional updates for wandb config. Default, {}.
+
+    Returns:
+        model (nn.Module): Trained model
+    '''
 
     # Instantiate Loss
     device = 'cuda' if torch.cuda.is_available() else 'cpu'

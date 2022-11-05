@@ -8,6 +8,21 @@ from aim_perception.evaluation import Evaluation
 
 
 class Trainer:
+    ''' Class to handle model training.
+
+    Attributes:
+        _epochs (int): Number of epochs to train for
+        _validate_every (int): Number of steps to run validation
+        _criterion (nn.Module): Torch loss function
+        _optimizer (torch.optim.Optimizer): Torch optimizer
+        _scheduler (torch.optim.lr_scheduler._LRScheduler): Learning rate scheduler
+        _save_path (str): Optional path to save model to at best balanced validation accuracy
+        _wandb (str): Optional WandB projec to report results to
+        _wandb_config_updates (dict): Updates to add to WandB config
+        _max_val_accuracy (int): Attribute that tracks max validation accuracy
+        _min_val_loss (float): Attribute that tracks min validation loss
+        _device (str): Device to train model with
+    '''
 
     def __init__(
         self, 
@@ -20,6 +35,17 @@ class Trainer:
         wandb_project: str = None,
         wandb_config_updates: dict = {}
     ) -> None:
+        '''
+        Args:
+            epochs (int): Number of epochs to train for
+            validate_every (int): Number of steps to run validation
+            criterion (nn.Module): Torch loss function
+            optimizer (torch.optim.Optimizer): Torch optimizer
+            scheduler (torch.optim.lr_scheduler._LRScheduler): Learning rate scheduler. Default, None.
+            save_path (str): Optional path to save model to at best balanced validation accuracy. Default, None.
+            wandb_project (str): Optional WandB projec to report results to. Default, None.
+            wandb_config_updates (dict): Updates to add to WandB config. Default, {}.
+        '''
 
         self._epochs = epochs
         self._validate_every = validate_every
@@ -34,9 +60,13 @@ class Trainer:
         self._min_val_loss = float('inf')
         self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-        
-    def config_wandb(self, train_loader: torch.utils.data.DataLoader, name: str = ''):
+    def config_wandb(self, train_loader: torch.utils.data.DataLoader, name: str = '') -> None:
+        ''' Method to configure weighs and biases if we are reporting.
 
+        Args:
+            train_loader (torch.utils.data.DataLoader): Train loader used to load training data.
+            name (str): Name of WandB run
+        '''
         wandb_config = self._wandb_config_updates
         wandb_config.update(
             dict(
@@ -57,7 +87,19 @@ class Trainer:
         model: nn.Module, 
         val_loader: AimDataset,
     ) -> None:
+        ''' Method for running evaluation on validation set. 
+            - Reports training loss, validation loss and validation balanced-accuracy to terminal
+            - Tracks max validation balanced-accuracy and min validation loss
+            - Logs results to WandB if configured
+            - Saves model if save path given at instantiation
 
+        Args:
+            epoch_num (int): Epoch number we are validating on
+            batch_num (int): Batch number in epoch we are validating on
+            running_loss (float): Running loss for this evaluation step
+            model (nn.Module): Training model for running evaluation
+            val_loader (AimDatase): Val loader to loading validation data split
+        '''
         # Instantiate val loss
         running_val_loss = 0
 
@@ -122,10 +164,25 @@ class Trainer:
         model: nn.Module, 
         train_loader: torch.utils.data.DataLoader, 
         val_loader: torch.utils.data.DataLoader, 
-        fine_tune_epochs: int = 10,
+        fine_tune_epochs: int,
         run_name: str = '',
     ) -> nn.Module:
+        ''' Call to run the training regime and return trained model.
+            - Runs training over model
+            - Will freeze the backbone for fine_tune_epochs, then unfreeze 
+            - Reports metrics to WandB if given
+            - Prints a final classification report at end of training
 
+        Args:
+            model (nn.Module): Torch model to train
+            train_loader (torch.utils.data.DataLoader): Training data loader that loads AimDataset for training split 
+            val_loader (torch.utils.data.DataLoader): Validation data loader that loads AimDataset for validation split 
+            fine_tune_epochs (int): Number of epochs for which to freeze backbone
+            run_name (str): Optional run name for WandB. Default, ''.
+
+        Returns:
+            model (nn.Module): Trained model
+        '''
         # Configure weights and biases if given
         if self._wandb:
             self.config_wandb(train_loader=train_loader, name=run_name)
@@ -182,9 +239,10 @@ class Trainer:
             if self._scheduler:
                 self._scheduler.step()
 
-        # If we are using stochastic weight averaging, swap swa
+        # If we are using stochastic weight averaging, swap swa and save model
         if isinstance(self._optimizer, torchcontrib.optim.swa.SWA):
             self._optimizer.swap_swa_sgd()
+            torch.save(model.state_dict(), self._save_path)
 
         print(f'-------- Finished Training --------')
 
