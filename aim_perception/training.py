@@ -1,5 +1,6 @@
 import wandb
 import torch
+import torchcontrib
 from torch import nn
 from datetime import datetime
 from aim_perception.loading import AimDataset
@@ -15,6 +16,7 @@ class Trainer:
         criterion: nn.Module,
         optimizer: torch.optim.Optimizer, 
         scheduler: torch.optim.lr_scheduler._LRScheduler = None,
+        save_path: str = None,
         wandb_project: str = None,
         wandb_config_updates: dict = {}
     ) -> None:
@@ -24,6 +26,7 @@ class Trainer:
         self._criterion = criterion
         self._optimizer = optimizer
         self._scheduler = scheduler
+        self._save_path = save_path
         self._wandb = wandb_project
         self._wandb_config_updates = wandb_config_updates
 
@@ -32,20 +35,17 @@ class Trainer:
         self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         
-    def config_wandb(self, fine_tune_epochs: int, train_loader: torch.utils.data.DataLoader, name: str = ''):
+    def config_wandb(self, train_loader: torch.utils.data.DataLoader, name: str = ''):
 
         wandb_config = self._wandb_config_updates
         wandb_config.update(
             dict(
                 epochs=self._epochs,
                 batch_size=train_loader.batch_size,
-                fine_tune_epochs=fine_tune_epochs,
-                learning_rate=self._optimizer.defaults['lr'],
-                weight_decay=self._optimizer.defaults['weight_decay'],
             )
         )
         
-        name += datetime.utcnow().isoformat()
+        name += '-' + datetime.utcnow().isoformat()
 
         wandb.init(project=self._wandb, name=name, config=wandb_config, reinit=True)
 
@@ -87,13 +87,20 @@ class Trainer:
         epoch_train_loss = running_loss / self._validate_every
         epoch_val_loss = running_val_loss / (j + 1)
 
-        evaluation = Evaluation(true_prob=y_val_accum, predicted_prob=y_val_hat_accum)
+        # Run evaluation
+        evaluation = Evaluation(true_prob=y_val_accum, predicted_prob=y_val_hat_accum, data_loader=val_loader)
         balanced_accuracy = evaluation.balanced_accuracy
         
         print(f'[{epoch_num + 1}, {batch_num + 1:5d}] train loss: {epoch_train_loss:.3f} | val loss: {epoch_val_loss:.3f} | val bal-acc: {balanced_accuracy:.3f}')
 
         # Update tracking
-        self._max_val_accuracy = max(balanced_accuracy, self._max_val_accuracy)
+        if balanced_accuracy > self._max_val_accuracy:
+            self._max_val_accuracy = balanced_accuracy
+
+            # Save if we have a save path
+            if self._save_path:
+                torch.save(model.state_dict(), self._save_path)
+
         self._min_val_loss = min(epoch_val_loss, self._min_val_loss)
 
         # Ship to wandb if given
@@ -115,27 +122,26 @@ class Trainer:
         model: nn.Module, 
         train_loader: torch.utils.data.DataLoader, 
         val_loader: torch.utils.data.DataLoader, 
-        fine_tune_epochs: int = None,
+        fine_tune_epochs: int = 10,
         run_name: str = '',
     ) -> nn.Module:
 
         # Configure weights and biases if given
         if self._wandb:
-            self.config_wandb(fine_tune_epochs=fine_tune_epochs, train_loader=train_loader, name=run_name)
-
-        # Freeze backbone
-        if fine_tune_epochs:
-            model.freeze_backbone()
+            self.config_wandb(train_loader=train_loader, name=run_name)
 
         # Configure device
         model = model.to(self._device)
         print(f'Moving model to {self._device}...')
+
+        if fine_tune_epochs:
+            model.freeze_backbone()
                     
         for epoch in range(self._epochs):  # loop over the dataset multiple times
                 
             running_loss = 0.0
 
-            if fine_tune_epochs and epoch==fine_tune_epochs:
+            if fine_tune_epochs and fine_tune_epochs==epoch:
                 model.unfreeze_backbone()
 
             for i, batch in enumerate(train_loader, 0):
@@ -176,6 +182,9 @@ class Trainer:
             if self._scheduler:
                 self._scheduler.step()
 
+        # If we are using stochastic weight averaging, swap swa
+        if isinstance(self._optimizer, torchcontrib.optim.swa.SWA):
+            self._optimizer.swap_swa_sgd()
 
         print(f'-------- Finished Training --------')
 

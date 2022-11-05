@@ -17,6 +17,16 @@ class AimDataset(Dataset):
         self._label_mapping = label_mapping
         self._transforms = transforms
 
+    @property
+    def reverse_mapping(self):
+
+        reverse_mapping = {}
+        for k, v in self._label_mapping.items():
+            class_id = torch.argmax(v).item()
+            reverse_mapping[class_id] = k
+
+        return reverse_mapping
+
     def get_class_weights(self) -> torch.Tensor:
 
         class_weights = compute_class_weight(

@@ -43,7 +43,7 @@ def create_model_and_optimimzer(
     model_kwargs: dict, 
     learning_rate: float = 1e-1, 
     weight_decay: float = 1e-4, 
-    momentum: float = 0.9,
+    momentum=0.9,
     swa_kwargs: dict = {},
 ) -> Tuple[nn.Module, torch.optim.Optimizer]:
 
@@ -54,7 +54,13 @@ def create_model_and_optimimzer(
     )
 
     if swa_kwargs:
-         optimizer = torchcontrib.optim.SWA(optimizer, **swa_kwargs)
+        swa = torchcontrib.optim.SWA(optimizer, **swa_kwargs)
+
+        swa.state = optimizer.state
+        swa.defaults = optimizer.defaults
+        swa.param_groups = optimizer.param_groups
+
+        return model, swa
 
     return model, optimizer
 
@@ -65,10 +71,12 @@ def train_model(
     val_loader: torch.utils.data.DataLoader,
     wandb_project: str,
     wandb_run_name: str,
-    epochs: int = 40,
-    scheduler_step_size: int = 20,
+    epochs: int = 30,
+    fine_tune_epochs: int = 10,
+    scheduler_step_size: int = 10,
     scheduler_gamma: float = 0.1,
-    fine_tune_epochs: int = None,
+    save_path: str = None,
+    wandb_config_updates: dict = {},
 ) -> nn.Module:
 
     # Instantiate Loss
@@ -88,8 +96,11 @@ def train_model(
         criterion=criterion, 
         optimizer=optimizer, 
         scheduler=scheduler, 
+        save_path=save_path,
         wandb_project=wandb_project,
+        wandb_config_updates=wandb_config_updates,
     )
+
     eval = trainer(
         model=model, 
         train_loader=train_loader, 
