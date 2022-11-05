@@ -65,7 +65,7 @@ def train_model(
     val_loader: torch.utils.data.DataLoader,
     wandb_project: str,
     wandb_run_name: str,
-    epochs: int = 60,
+    epochs: int = 40,
     scheduler_step_size: int = 20,
     scheduler_gamma: float = 0.1,
     fine_tune_epochs: int = None,
