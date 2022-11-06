@@ -21,7 +21,14 @@ CLASS_MAPPING = {
     9: 'work_van'
 }
 
-def infer(data_path: str):
+
+def infer(data_path: str, model_path: str) -> None:
+    ''' Run inference over a dataset
+
+    Args:
+        data_path (str): Absolute path to dataset to run inference on
+        model_path (str): Path to model checkpoint
+    '''
 
     # Assert data path exists
     assert os.path.exists(data_path), f'Data path {data_path} does not exist!'
@@ -37,10 +44,7 @@ def infer(data_path: str):
     ]
 
     # Load model and weighs
-    model_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        'checkpoints', 'resnet_50', 'final.pt'
-    )
+
     model = ModelFactory.get_model('resnet_50', dropout=0.05)
     model.load_state_dict(
         torch.load(model_path, map_location=torch.device('cpu'))
@@ -86,10 +90,17 @@ def infer(data_path: str):
 
 if __name__=='__main__':
 
+    # Declaring our base model path here
+    MODEL_PATH = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'checkpoints', 'resnet_50', 'final.pt'
+    )    
+
     # Parse Args
     parser = argparse.ArgumentParser(prog = 'Model inference')
     parser.add_argument('-d','--data_path', help='Data path', required=True)
+    parser.add_argument('-m','--model_path', help='Model path', default=MODEL_PATH)
     args = parser.parse_args()
 
     # Run model
-    infer(args.data_path)
+    infer(args.data_path, args.model_path)

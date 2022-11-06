@@ -36,10 +36,11 @@ def test_inference():
     dataset_path = os.path.join(TESTS_LOCATION, 'dataset')
     data_path = os.path.join(dataset_path, 'data')
     ground_truth_path = os.path.join(dataset_path, 'ground_truth.csv')
+    model_path = os.path.join(REPO_LOCATION, 'checkpoints', 'resnet_50', 'final.pt')
     output_path = os.path.join(data_path, 'results.csv')
 
     # Run training
-    run_inference.infer(data_path=data_path)
+    run_inference.infer(data_path=data_path, model_path=model_path)
 
     # Get results
     results_df = pd.read_csv(output_path, dtype=str).sort_values('image_name')
