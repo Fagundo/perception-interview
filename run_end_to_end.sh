@@ -30,8 +30,7 @@ echo Running training on data in $1 for 55 epochs.
 echo Model will be saved to $model_path
 echo ---------------------------
 mkdir $model_path
-python3 -m aim_perception.run_training -d $1 -m $model_path -e 1 -b 100
-
+python3 -m aim_perception.run_training -d $1 -m $model_path
 
 # Run training
 echo Running inference data in $2...
