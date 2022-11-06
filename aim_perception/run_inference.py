@@ -42,7 +42,9 @@ def infer(data_path: str):
         'checkpoints', 'resnet_50', 'final.pt'
     )
     model = ModelFactory.get_model('resnet_50', dropout=0.05)
-    model.load_state_dict(torch.load(model_path))
+    model.load_state_dict(
+        torch.load(model_path, map_location=torch.device('cpu'))
+    )
 
     # Configure for evaluation
     model.eval()
