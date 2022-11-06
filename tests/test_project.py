@@ -24,7 +24,6 @@ def test_training():
     assert os.path.exists(label_df_path)==True, 'Label results not written!'
     assert os.path.exists(model_path)==True, 'Model not generated'
 
-
     # Clean up
     os.remove(label_df_path)
     os.remove(model_path)
