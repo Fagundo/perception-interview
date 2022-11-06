@@ -1,6 +1,7 @@
 import os
 import torch
 import argparse
+import logging
 from aim_perception import pipeline
 from aim_perception.evaluation import InferenceEvaluation
 
@@ -19,13 +20,14 @@ MODEL_KWARGS = dict(dropout=0.05)
 SWA_KWARGS = dict(swa_start=45, swa_freq=1)
 
 
-def run(root_data_path: str, model_path: str, epochs: int) -> None:
+def run(root_data_path: str, model_path: str, epochs: int, batch_size: int) -> None:
     ''' Function for train model. 
 
     Args:
         root_data_path (str): Path to dataset
         model_path (str): Path to either load saved weights from or save weights to
         epochs (int): Number of epochs to run
+        batch_size (int): Batch size for training
     '''
 
     # Assert paths exist
@@ -34,12 +36,19 @@ def run(root_data_path: str, model_path: str, epochs: int) -> None:
 
     # Load data loaders
     train_loader, val_loader, test_loader = pipeline.create_data_loaders(
-        root_data_path=root_data_path, batch_size=BATCH_SIZE, image_size=(IMAGE_SIZE, IMAGE_SIZE)
+        root_data_path=root_data_path, batch_size=batch_size, image_size=(IMAGE_SIZE, IMAGE_SIZE)
     )
 
     # Load model and optimizer
+    if epochs < SWA_KWARGS['swa_start']:
+        swa_kwargs = {}
+        logging.info('SWA start is less greater than num epochs. This is likely in testing...')
+
+    else:
+        swa_kwargs = SWA_KWARGS
+
     model, optimizer = pipeline.create_model_and_optimimzer(
-        MODEL_NAME, MODEL_KWARGS, weight_decay=WEIGHT_DECAY, swa_kwargs=SWA_KWARGS
+        MODEL_NAME, MODEL_KWARGS, weight_decay=WEIGHT_DECAY, swa_kwargs=swa_kwargs
     )
 
     # Get device and put model on it
@@ -77,6 +86,7 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser(prog = 'Final Model Run')
     parser.add_argument('-d','--data_path', help='Data path', required=True)
     parser.add_argument('-e','--epochs', help='Number of epochs to run', default=EPOCHS)
+    parser.add_argument('-b','--batch_size', help='Batch size for training', default=BATCH_SIZE)
     parser.add_argument(
         '-m','--model_path', help='Absolute path to save model to or load from', required=True
     )
@@ -84,5 +94,5 @@ if __name__=='__main__':
     args = parser.parse_args()
 
     # Run model
-    run(args.data_path, args.model_path, int(args.epochs))
+    run(args.data_path, args.model_path, epochs=int(args.epochs), batch_size=int(args.batch_size))
 
