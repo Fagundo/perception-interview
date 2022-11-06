@@ -34,7 +34,6 @@ python3 -m aim_perception.run_training -d $1 -m $model_path/model.pt
 
 # Run training
 echo Running inference data in $2...
-echo Model will be saved to $model_path
 echo ---------------------------
 python3 -m aim_perception.run_inference -d $2 -m $model_path/model.pt
 echo Inference completed.
